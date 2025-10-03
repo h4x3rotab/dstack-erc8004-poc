@@ -12,30 +12,34 @@ import {
     BatchVerifierJournal,
     VerificationResult
 } from "./INitroEnclaveVerifier.sol";
+import {ITEEVerifier} from "../ITEEVerifier.sol";
 import {console} from "forge-std/console.sol";
 
 /**
  * @title NitroEnclaveVerifier
  * @dev Implementation contract for AWS Nitro Enclave attestation verification using zero-knowledge proofs
- * 
+ *
  * This contract provides on-chain verification of AWS Nitro Enclave attestation reports by validating
  * zero-knowledge proofs generated off-chain. It supports both single and batch verification modes
  * and can work with multiple ZK proof systems (RISC Zero and Succinct SP1).
- * 
+ *
+ * Implements both INitroEnclaveVerifier (low-level ZK verification) and ITEEVerifier (EIP 8004 interface).
+ *
  * Key features:
  * - Certificate chain management with automatic caching of newly discovered certificates
  * - Timestamp validation with configurable time tolerance
  * - Certificate revocation capabilities for compromised intermediate certificates
  * - Gas-efficient batch verification for multiple attestations
  * - Support for both RISC Zero and SP1 proving systems
- * 
+ * - EIP 8004 compliant interface for TEERegistry integration
+ *
  * Security considerations:
  * - Only the contract owner can manage certificates and configurations
  * - Root certificate is immutable once set (requires owner to change)
  * - Intermediate certificates are automatically cached but can be revoked
  * - Timestamp validation prevents replay attacks within the configured time window
  */
-contract NitroEnclaveVerifier is Ownable, INitroEnclaveVerifier {
+contract NitroEnclaveVerifier is Ownable, INitroEnclaveVerifier, ITEEVerifier {
     /// @dev Configuration mapping for each supported ZK coprocessor type
     mapping(ZkCoProcessorType => ZkCoProcessorConfig) public zkConfig;
     
@@ -281,6 +285,26 @@ contract NitroEnclaveVerifier is Ownable, INitroEnclaveVerifier {
     }
 
     /**
+     * @dev Internal function to verify zero-knowledge proofs using memory parameters
+     * Used by the EIP 8004 verify function which works with decoded memory data
+     */
+    function _verifyZkMemory(
+        ZkCoProcessorType zkCoprocessor,
+        bytes32 programId,
+        bytes memory output,
+        bytes memory proofBytes
+    ) internal view {
+        address zkVerifier = zkConfig[zkCoprocessor].zkVerifier;
+        if (zkCoprocessor == ZkCoProcessorType.RiscZero) {
+            IRiscZeroVerifier(zkVerifier).verify(proofBytes, programId, sha256(output));
+        } else if (zkCoprocessor == ZkCoProcessorType.Succinct) {
+            ISP1Verifier(zkVerifier).verifyProof(programId, output, proofBytes);
+        } else {
+            revert Unknown_Zk_Coprocessor();
+        }
+    }
+
+    /**
      * @dev Verifies a single attestation report using zero-knowledge proof
      * @param output Encoded VerifierJournal containing the verification result
      * @param zkCoprocessor Type of ZK coprocessor used to generate the proof
@@ -310,5 +334,71 @@ contract NitroEnclaveVerifier is Ownable, INitroEnclaveVerifier {
         VerifierJournal memory journal = abi.decode(output, (VerifierJournal));
         journal = _verifyJournal(journal);
         return journal;
+    }
+
+    /**
+     * @dev EIP 8004 compliant verify function for TEERegistry integration
+     *
+     * This is the standardized interface that TEERegistry calls to verify attestations.
+     * It wraps the low-level verify() function and validates the extracted data matches
+     * the expected values.
+     *
+     * @param identityRegistry - Address of the identity registry (available for verifiers that need it)
+     * @param agentId - The agent ID (available for verifiers that need it)
+     * @param codeMeasurement - Expected code measurement hash (computed from PCRs)
+     * @param pubkey - Expected public key (as address)
+     * @param codeConfigUri - Expected code configuration URI
+     * @param proof - Encoded proof data containing (ZkCoProcessorType, output, proofBytes)
+     * @return bool - True if verification succeeds
+     */
+    function verify(
+        address identityRegistry,
+        uint256 agentId,
+        bytes32 codeMeasurement,
+        address pubkey,
+        string calldata codeConfigUri,
+        bytes calldata proof
+    ) external returns (bool) {
+        // Decode proof data
+        (ZkCoProcessorType zkCoprocessor, bytes memory output, bytes memory proofBytes) =
+            abi.decode(proof, (ZkCoProcessorType, bytes, bytes));
+
+        // Verify the attestation using the ZK verifier (RISC Zero or SP1)
+        bytes32 programId = zkConfig[zkCoprocessor].verifierId;
+        _verifyZkMemory(zkCoprocessor, programId, output, proofBytes);
+        VerifierJournal memory journal = abi.decode(output, (VerifierJournal));
+        journal = _verifyJournal(journal);
+
+        // Check verification result
+        require(journal.result == VerificationResult.Success, "Attestation verification failed");
+
+        // Compute the hash of all PCR values for codeMeasurement
+        bytes memory allPcrBytes = new bytes(journal.pcrs.length * 48);
+        uint256 offset = 0;
+        for (uint256 i = 0; i < journal.pcrs.length; i++) {
+            bytes32 first = journal.pcrs[i].value.first;
+            for (uint256 j = 0; j < 32; j++) {
+                allPcrBytes[offset + j] = first[j];
+            }
+            bytes16 second = journal.pcrs[i].value.second;
+            for (uint256 j = 0; j < 16; j++) {
+                allPcrBytes[offset + 32 + j] = second[j];
+            }
+            offset += 48;
+        }
+        bytes32 computedCodeMeasurement = keccak256(allPcrBytes);
+
+        // Verify the computed code measurement matches the expected one
+        require(computedCodeMeasurement == codeMeasurement, "Code measurement mismatch");
+
+        // Verify public key matches (convert bytes to address)
+        require(journal.publicKey.length >= 20, "Invalid public key length");
+        address extractedPubkey = address(bytes20(journal.publicKey));
+        require(extractedPubkey == pubkey, "Public key mismatch");
+
+        // Note: codeConfigUri validation could be added here if needed
+        // For now, we trust that the caller provides the correct URI
+
+        return true;
     }
 }

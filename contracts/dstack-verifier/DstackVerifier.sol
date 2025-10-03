@@ -95,7 +95,7 @@ contract DstackOffchainVerifier is ITEEVerifier {
         address pubkey,
         string calldata codeConfigUri,
         bytes calldata proof
-    ) external view returns (bool) {
+    ) external returns (bool) {
         // Verify the signature from the validator
         (bytes memory message, bytes memory signature) = abi.decode(proof, (bytes, bytes));
         bytes32 digest = keccak256(message);

@@ -9,5 +9,5 @@ interface ITEEVerifier {
         address pubkey,
         string calldata codeConfigUri,
         bytes calldata proof
-    ) external view returns (bool);
+    ) external returns (bool);
 }

@@ -56,7 +56,7 @@ contract TEERegistry is ITEERegistry, Ownable {
     ) external {
         // TODO: Verify caller is owner/operator of agentId via identityRegistry
 
-        // TODO: Verify that verifier is whitelisted
+        // Verify that verifier is whitelisted
         require(_verifiers[verifier].teeArch != bytes32(0), "Verifier not whitelisted");
 
         // Verify key doesn't already exist

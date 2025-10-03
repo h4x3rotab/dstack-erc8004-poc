@@ -5,8 +5,6 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./IAutomataDcapAttestation.sol";
 import "../ITEEVerifier.sol";
 
-import "forge-std/console.sol";
-
 contract DstackOffchainVerifier is ITEEVerifier {
 
     address public validatorPublicKey;
@@ -42,14 +40,13 @@ contract DstackOffchainVerifier is ITEEVerifier {
     function initValidator(address _validatorPublicKey, bytes calldata rawQuote) external {
         // Verify DCAP attestation first
         // TODO: Uncomment this when the DCAP attestation is implemented
-        (bool success, bytes memory output) = IAutomataDcapAttestation(dcapVerifier).verifyAndAttestOnChain(rawQuote);
+        (bool success, bytes memory output) = IAutomataDcapAttestationFee(dcapVerifier).verifyAndAttestOnChain(rawQuote);
         require(success, "DCAP verification failed");
 
         // Extract and verify public key
         bytes memory reportData = substring(rawQuote, 520+48, 64);        
 
         address publicKey = address(uint160(uint256(bytes32(reportData)) >> 96));
-        console.logAddress(publicKey);
         require(publicKey == _validatorPublicKey, "Invalid public key");
 
         // Verify measurements
@@ -58,17 +55,6 @@ contract DstackOffchainVerifier is ITEEVerifier {
     }
 
     function _verifyMeasurements(bytes memory reportBytes) internal view {
-
-        // console.log all the values
-        {
-            console.logBytes(substring(reportBytes, 136+48, 48));
-            console.logBytes(substring(reportBytes, 184+48, 48));
-            console.logBytes(substring(reportBytes, 328+48, 48));
-            console.logBytes(substring(reportBytes, 376+48, 48));
-            console.logBytes(substring(reportBytes, 424+48, 48));
-            console.logBytes(substring(reportBytes, 472+48, 48));
-        }
-
         require(keccak256(substring(reportBytes, 136+48, 48)) == keccak256(referenceMrTd), "Invalid mrTd");
         require(keccak256(substring(reportBytes, 184+48, 48)) == keccak256(referenceMrConfigId), "Invalid mrConfigId");
         require(keccak256(substring(reportBytes, 328+48, 48)) == keccak256(referenceRtMr0), "Invalid rtMr0");

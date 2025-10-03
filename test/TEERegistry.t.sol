@@ -51,7 +51,7 @@ contract TEERegistryTest is Test {
         // Mock the DCAP verifier call to return success
         vm.mockCall(
             dcapVerifier,
-            abi.encodeWithSelector(IAutomataDcapAttestation.verifyAndAttestOnChain.selector),
+            abi.encodeWithSelector(IAutomataDcapAttestationFee.verifyAndAttestOnChain.selector),
             abi.encode(true, bytes(""))
         );
 

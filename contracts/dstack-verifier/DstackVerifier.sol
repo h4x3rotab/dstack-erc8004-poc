@@ -39,7 +39,6 @@ contract DstackOffchainVerifier is ITEEVerifier {
 
     function initValidator(address _validatorPublicKey, bytes calldata rawQuote) external {
         // Verify DCAP attestation first
-        // TODO: Uncomment this when the DCAP attestation is implemented
         (bool success, bytes memory output) = IAutomataDcapAttestationFee(dcapVerifier).verifyAndAttestOnChain(rawQuote);
         require(success, "DCAP verification failed");
 

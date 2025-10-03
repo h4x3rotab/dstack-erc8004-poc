@@ -3,10 +3,11 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./IAutomataDcapAttestation.sol";
+import "../ITEEVerifier.sol";
 
 import "forge-std/console.sol";
 
-contract DstackOffchainVerifier {
+contract DstackOffchainVerifier is ITEEVerifier {
 
     address public validatorPublicKey;
     address public dcapVerifier;
@@ -80,18 +81,28 @@ contract DstackOffchainVerifier {
     //
     // The real validation happened offchain by the validator. Validator acts as an oracle to
     // provide the proof for onchain verification
+    //
+    // @param identityRegistry - Address of the identity registry (available for verifiers that need it)
+    // @param agentId - The agent ID (available for verifiers that need it)
+    // @param codeMeasurement - Expected code measurement hash
+    // @param pubkey - Expected public key
+    // @param codeConfigUri - Expected code configuration URI
+    // @param proof - Encoded proof data
     function verify(
+        address identityRegistry,
+        uint256 agentId,
         bytes32 codeMeasurement,
         address pubkey,
         string calldata codeConfigUri,
         bytes calldata proof
     ) external view returns (bool) {
         // Verify the signature from the validator
-        (bytes32 message, bytes memory signature) = abi.decode(proof, (bytes32, bytes));
-        require(ECDSA.recover(message, signature) == validatorPublicKey, "Invalid signature");
+        (bytes memory message, bytes memory signature) = abi.decode(proof, (bytes, bytes));
+        bytes32 digest = keccak256(message);
+        require(ECDSA.recover(digest, signature) == validatorPublicKey, "Invalid signature");
 
         // Verify the claims
-        (bytes32 expectedMeasurement, address expectedPubkey, string memory expectedCodeConfigUri) = abi.decode(abi.encodePacked(message), (bytes32, address, string));
+        (bytes32 expectedMeasurement, address expectedPubkey, string memory expectedCodeConfigUri) = abi.decode(message, (bytes32, address, string));
         return (
             expectedMeasurement == codeMeasurement
             && expectedPubkey == pubkey

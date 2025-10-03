@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import "../contracts/TEERegistry.sol";
-import "../contracts/DstackVerifier.sol";
-import "../contracts/IAutomataDcapAttestation.sol";
+import "../contracts/dstack-verifier/DstackVerifier.sol";
+import "../contracts/dstack-verifier/IAutomataDcapAttestation.sol";
 
 contract TEERegistryTest is Test {
     TEERegistry public registry;

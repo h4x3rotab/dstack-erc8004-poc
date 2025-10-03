@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./ITEERegistry.sol";
+import "./ITEEVerifier.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
@@ -61,11 +62,18 @@ contract TEERegistry is ITEERegistry, Ownable {
         // Verify key doesn't already exist
         require(_keys[pubkey].verifier == address(0), "Key already exists");
 
-        // TODO: Call verifier to validate proof
-        // The verifier should validate:
-        // - The TEE attestation is valid
-        // - The codeMeasurement matches the public input in the proof
-        // - The pubkey matches the public input in the proof
+        // Call verifier to validate proof
+        require(
+            ITEEVerifier(verifier).verify(
+                identityRegistry,
+                agentId,
+                codeMeasurement,
+                pubkey,
+                codeConfigUri,
+                proof
+            ),
+            "Proof verification failed"
+        );
 
         _keys[pubkey] = Key({
             teeArch: teeArch,

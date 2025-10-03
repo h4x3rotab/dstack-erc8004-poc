@@ -1,8 +1,6 @@
-# EIP 8004 TEERegistry Integration Showcase
+# ERC-8004 TEERegistry
 
-This repository demonstrates a complete implementation of **EIP 8004: TEE Key Registry**, featuring a working end-to-end integration with Intel TDX attestations via Dstack.
-
-## Overview
+This repository demonstrates an implementation of **ERC-8004: TEE Key Registry**.
 
 EIP 8004 enables agents running in TEEs to register their keys onchain after proving they were generated in a secure environment. This eliminates the need for frequent onchain transactions. Once a key is verified and registered, anyone trusting the TEE vendor and OS image can use the public key for encryption or signature verification.
 

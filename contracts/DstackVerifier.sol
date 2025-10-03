@@ -41,8 +41,8 @@ contract DstackOffchainVerifier {
     function initValidator(address _validatorPublicKey, bytes calldata rawQuote) external {
         // Verify DCAP attestation first
         // TODO: Uncomment this when the DCAP attestation is implemented
-        //(bool success, bytes memory output) = IAutomataDcapAttestation(dcapVerifier).verifyAndAttestOnChain(rawQuote);
-        //require(success, "DCAP verification failed");
+        (bool success, bytes memory output) = IAutomataDcapAttestation(dcapVerifier).verifyAndAttestOnChain(rawQuote);
+        require(success, "DCAP verification failed");
 
         // Extract and verify public key
         bytes memory reportData = substring(rawQuote, 520+48, 64);        
